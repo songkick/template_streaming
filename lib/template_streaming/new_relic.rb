@@ -526,7 +526,7 @@ module TemplateStreaming
       end
     end
 
-    ActionController::Dispatcher.middleware.insert(0, Middleware)
+    # ActionController::Dispatcher.middleware.insert(0, Middleware)
     ActionController::Base.send :include, Controller
     ::NewRelic::Agent::StatsEngine.send :include, StatsEngine
     ::NewRelic::Agent::Instrumentation::MetricFrame.send :include, MetricFrame

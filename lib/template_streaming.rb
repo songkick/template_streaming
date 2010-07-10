@@ -50,20 +50,24 @@ module TemplateStreaming
     end
 
     def render_with_template_streaming(*args, &block)
+      puts "In render: #{args.inspect}"
+      # puts "Call stack here is: #{caller.join("\n")}"
       with_template_streaming_condition(*args) do |condition|
         if condition
           @performed_render = true
           @streaming_body = StreamingBody.new(progressive_rendering_threshold) do
             @performed_render = false
+            puts "About to call original render with args #{args.inspect}"
             last_piece = render_without_template_streaming(*args, &block)
             # The original render will clobber our response.body, so
             # we must push the buffer ourselves.
+            p# uts "Now the last piece: #{last_piece.inspect}"
             push last_piece
           end
           response.body = @streaming_body
           response.prepare!
           flash if TemplateStreaming.autosweep_flash
-          form_authenticity_token if TemplateStreaming.set_authenticity_token
+          # form_authenticity_token if TemplateStreaming.set_authenticity_token
           run_callbacks :when_streaming_template
 
           # Normally, @_flash is removed after #perform_action, which
@@ -125,6 +129,7 @@ module TemplateStreaming
       @render_stack_height ||= 0
       @render_stack_height += 1
       begin
+        puts "Stack height is #{@render_stack_height}"
         # Only install our StreamingBody in the toplevel #render call.
         @render_stack_height == 1 or
           return yield(false)
@@ -146,7 +151,7 @@ module TemplateStreaming
     # anything will be rendered.
     #
     def progressive_rendering_threshold
-      content_type = response.header['Content-type']
+      content_type = response.headers['Content-type']
       content_type.nil? || content_type =~ %r'\Atext/html' or
         return 0
 
@@ -207,6 +212,7 @@ module TemplateStreaming
     end
 
     def with_prelayout(prelayout, locals, &block)
+      puts "Rendering with prelayout #{prelayout}"
       if prelayout
         begin
           @_proc_for_layout = lambda do
@@ -228,16 +234,21 @@ module TemplateStreaming
     end
 
     def prelayout_for(options)
-      layout = options[:layout] or
-        return nil
+      #puts "Finding prelayout, options are #{options.inspect}"
+      #layout = options[:layout] or
+      #  return nil
       # Views can call #render with :layout to render a layout
       # *partial* which we don't want to interfere with. Only the
       # interlal toplevel #render calls :layout with an
       # ActionView::Template
-      layout.is_a?(ActionView::Template) or
-        return nil
-      view_paths.find_template('pre' + layout.path_without_format_and_extension, layout.format)
-    rescue ActionView::MissingTemplate
+      #layout.is_a?(ActionView::Template) or
+       # return nil
+      #puts "Looking for prelayout in #{'pre' + layout.path_without_format_and_extension} with extension #{layout.format}"
+      # ActionView::Template.new('prelayouts/application.html.erb', ['/home/phil/development/skweb/app/views/'])
+      '/home/phil/development/skweb/app/views/prelayouts/application.html.erb'
+    rescue ActionView::MissingTemplate => e
+      puts "Couldn't find template: #{e.inspect}"
+      puts "Stack trace: #{e.backtrace.join("\n")}"
     end
 
     def flash_with_template_streaming # :nodoc:
@@ -258,6 +269,7 @@ module TemplateStreaming
     end
 
     def push(data)
+      puts "pushing data: #{data.inspect} to client"
       if @bytes_to_threshold > 0
         @push.call(data + padding(@bytes_to_threshold - data.length))
         @bytes_to_threshold = 0
@@ -277,8 +289,8 @@ module TemplateStreaming
 
   ActionView::Base.send :include, View
   ActionController::Base.send :include, Controller
-  ActionController::Response.send :include, Response
-  ActionController::Dispatcher.middleware.insert 0, Rack::Chunked
+  ActionController::AbstractResponse.send :include, Response
+  # ActionController::Dispatcher.middleware.insert 0, Rack::Chunked
 end
 
 # Please let there be a better way to do this...
